@@ -5431,6 +5431,7 @@ with pkgs;
   rustracer = callPackage ../development/tools/rust/racer { };
   rustracerd = callPackage ../development/tools/rust/racerd { };
   rust-bindgen = callPackage ../development/tools/rust/bindgen { };
+  rust-clippy = callPackage ../development/tools/rust/clippy { };
 
   sbclBootstrap = callPackage ../development/compilers/sbcl/bootstrap.nix {};
   sbcl = callPackage ../development/compilers/sbcl {};
