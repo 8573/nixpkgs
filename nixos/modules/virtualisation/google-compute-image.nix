@@ -130,7 +130,7 @@ in
   networking.usePredictableInterfaceNames = false;
 
   systemd.services.fetch-ssh-keys =
-    { description = "Fetch host keys and authorized_keys for root user";
+    { description = "Fetch authorized_keys for root user";
 
       wantedBy = [ "sshd.service" ];
       before = [ "sshd.service" ];
@@ -138,7 +138,8 @@ in
       wants = [ "network-online.target" ];
 
       script = let wget = "${pkgs.wget}/bin/wget --retry-connrefused -t 15 --waitretry=10 --header='Metadata-Flavor: Google'";
-                   mktemp = "mktemp --tmpdir=/run"; in
+                   mktemp = "mktemp --tmpdir=/run";
+                   authKeysUrl = "http://metadata.google.internal/computeMetadata/v1/project/attributes/sshKeys"; in
         ''
           # When dealing with cryptographic keys, we want to keep things private.
           umask 077
@@ -147,46 +148,20 @@ in
               echo "obtaining SSH key..."
               mkdir -m 0700 -p /root/.ssh
               AUTH_KEYS=$(${mktemp})
-              ${wget} -O $AUTH_KEYS http://metadata.google.internal/0.1/meta-data/authorized-keys
+              ${wget} -O $AUTH_KEYS ${authKeysUrl}
               if [ -s $AUTH_KEYS ]; then
                   KEY_PUB=$(${mktemp})
                   cat $AUTH_KEYS | cut -d: -f2- > $KEY_PUB
-                  if ! grep -q -f $KEY_PUB /root/.ssh/authorized_keys; then
-                      cat $KEY_PUB >> /root/.ssh/authorized_keys
-                      echo "New key added to authorized_keys."
-                  fi
+                  cat $KEY_PUB >> /root/.ssh/authorized_keys
+                  echo "New key added to authorized_keys."
+                  cat /root/.ssh/authorized_keys
                   chmod 600 /root/.ssh/authorized_keys
                   rm -f $KEY_PUB
               else
-                  echo "Downloading http://metadata.google.internal/0.1/meta-data/authorized-keys failed."
+                  echo "Downloading ${authKeysUrl} failed."
                   false
               fi
               rm -f $AUTH_KEYS
-          fi
-
-          countKeys=0
-          ${flip concatMapStrings config.services.openssh.hostKeys (k :
-            let kName = baseNameOf k.path; in ''
-              PRIV_KEY=$(${mktemp})
-              echo "trying to obtain SSH private host key ${kName}"
-              ${wget} -O $PRIV_KEY http://metadata.google.internal/0.1/meta-data/attributes/${kName} && :
-              if [ $? -eq 0 -a -s $PRIV_KEY ]; then
-                  countKeys=$((countKeys+1))
-                  mv -f $PRIV_KEY ${k.path}
-                  echo "Downloaded ${k.path}"
-                  chmod 600 ${k.path}
-                  ${config.programs.ssh.package}/bin/ssh-keygen -y -f ${k.path} > ${k.path}.pub
-                  chmod 644 ${k.path}.pub
-              else
-                  echo "Downloading http://metadata.google.internal/0.1/meta-data/attributes/${kName} failed."
-              fi
-              rm -f $PRIV_KEY
-            ''
-          )}
-
-          if [[ $countKeys -le 0 ]]; then
-             echo "failed to obtain any SSH private host keys."
-             false
           fi
         '';
       serviceConfig.Type = "oneshot";
