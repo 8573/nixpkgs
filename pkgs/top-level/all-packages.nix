@@ -13434,6 +13434,8 @@ with pkgs;
 
   awesomebump = libsForQt5.callPackage ../applications/graphics/awesomebump { };
 
+  azurescens = callPackage ../applications/graphics/azurescens { };
+
   inherit (gnome3) baobab;
 
   backintime-common = callPackage ../applications/networking/sync/backintime/common.nix { };
